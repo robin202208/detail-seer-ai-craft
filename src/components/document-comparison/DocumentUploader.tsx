@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useCallback } from 'react';
 import { FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/components/ui/use-toast';
@@ -10,7 +10,7 @@ interface DocumentUploaderProps {
 }
 
 const DocumentUploader = ({ onFileUpload }: DocumentUploaderProps) => {
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
       const newFiles = Array.from(e.target.files);
       onFileUpload(newFiles);
@@ -20,7 +20,27 @@ const DocumentUploader = ({ onFileUpload }: DocumentUploaderProps) => {
         description: `成功添加 ${newFiles.length} 个文件`,
       });
     }
-  };
+  }, [onFileUpload]);
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      const newFiles = Array.from(e.dataTransfer.files);
+      onFileUpload(newFiles);
+      
+      toast({
+        title: "文件已上传",
+        description: `成功添加 ${newFiles.length} 个文件`,
+      });
+    }
+  }, [onFileUpload]);
 
   return (
     <div 
@@ -28,6 +48,8 @@ const DocumentUploader = ({ onFileUpload }: DocumentUploaderProps) => {
         "border-2 border-dashed rounded-lg p-8 flex flex-col items-center justify-center bg-muted/30 transition-all",
         "hover:bg-muted/50 cursor-pointer hover:border-detailseer"
       )}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
     >
       <input 
         type="file" 
@@ -43,7 +65,7 @@ const DocumentUploader = ({ onFileUpload }: DocumentUploaderProps) => {
         </div>
         <h3 className="text-lg font-medium mb-2">上传文档进行比较</h3>
         <p className="text-sm text-muted-foreground mb-4 text-center">
-          选择多个文档上传 (.pdf, .txt, .doc, .docx)
+          选择多个文档上传 (.pdf, .txt, .doc, .docx) 或拖放文件到此区域
         </p>
       </label>
     </div>
