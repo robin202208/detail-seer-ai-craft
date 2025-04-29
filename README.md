@@ -1,8 +1,4 @@
-要为您的链接创建一个 `README.md` 文件，我们可以包含以下内容：
-
----
-
-# Detail-Seer-AI-Craft
+ Detail-Seer-AI-Craft
 
 欢迎来到 **Detail-Seer-AI-Craft** 项目！
 
