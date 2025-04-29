@@ -2,6 +2,9 @@
 import React from 'react';
 import Header from '@/components/Header';
 import FileUploader from '@/components/FileUploader';
+import CompareDocuments from '@/components/CompareDocuments';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FileDiff, FileText } from 'lucide-react';
 
 const Index = () => {
   return (
@@ -13,8 +16,26 @@ const Index = () => {
           <p className="text-xl text-muted-foreground text-center mb-8">
             AI-powered document analysis and comparison
           </p>
+          
+          <Tabs defaultValue="upload" className="w-full mb-8">
+            <TabsList className="grid w-full grid-cols-2 mb-6">
+              <TabsTrigger value="upload" className="flex items-center gap-2">
+                <FileText className="h-4 w-4" />
+                文档分析
+              </TabsTrigger>
+              <TabsTrigger value="compare" className="flex items-center gap-2">
+                <FileDiff className="h-4 w-4" />
+                文档比对
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="upload">
+              <FileUploader />
+            </TabsContent>
+            <TabsContent value="compare">
+              <CompareDocuments />
+            </TabsContent>
+          </Tabs>
         </div>
-        <FileUploader />
       </main>
       <footer className="py-6 border-t border-border">
         <div className="container text-center text-sm text-muted-foreground">

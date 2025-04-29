@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileDiff, FileText, FileSearch } from 'lucide-react';
+import { Loader2, FileDiff, FileText, FileSearch, Table, ChevronDown, ChevronUp } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
 interface ComparisonResult {
   comparison: string;
@@ -73,8 +74,8 @@ const CompareDocuments = () => {
       const contentB = fileContents[selectedFiles.fileB.name];
 
       toast({
-        title: "开始比对",
-        description: "正在分析文档差异，这可能需要一点时间...",
+        title: "开始详细比对",
+        description: "正在深入分析文档差异，这可能需要一些时间...",
       });
 
       const { data, error } = await supabase.functions.invoke<ComparisonResult>('document-compare', {
@@ -90,10 +91,10 @@ const CompareDocuments = () => {
       
       toast({
         title: "比对完成",
-        description: "文档差异分析已完成"
+        description: "文档差异详细分析已完成"
       });
     } catch (error) {
-      console.error('Error comparing documents:', error);
+      console.error('文档比对错误:', error);
       toast({
         title: "比对失败",
         description: error instanceof Error ? error.message : "比较文档时出错",
@@ -127,22 +128,70 @@ const CompareDocuments = () => {
     });
   };
 
-  // Format comparison result for better readability
+  // 增强格式化比较结果以更好地处理表格和结构化内容
   const formatComparison = (text: string) => {
     if (!text) return [];
     
-    // Convert the text into sections based on numbered points
-    const sections = text.split(/^\d+\.\s/m).filter(Boolean);
+    // 识别主要部分（基于数字和中文标题）
+    const sections = text.split(/^\d+\.\s*【[^】]+】[：:]/m).filter(Boolean);
+    
+    if (sections.length <= 1) {
+      // 如果无法拆分为预期的格式，尝试其他分割方法
+      const altSections = text.split(/^\d+\.\s+/m).filter(Boolean);
+      if (altSections.length > 1) {
+        return altSections.map((section, index) => {
+          const title = section.split('\n')[0].trim();
+          const content = section.split('\n').slice(1).join('\n').trim();
+          
+          return {
+            title: title || `差异类别 ${index + 1}`,
+            content
+          };
+        });
+      }
+    }
     
     return sections.map((section, index) => {
-      const title = section.split('\n')[0].trim();
-      const content = section.split('\n').slice(1).join('\n').trim();
+      // 尝试提取标题（可能在第一行或开头部分）
+      const titleMatch = section.match(/^([^：\n]+)[：:]/);
+      let title = titleMatch ? titleMatch[1] : `差异类别 ${index + 1}`;
+      title = title.replace(/^\s*【/, '').replace(/】\s*$/, '');
+      
+      // 提取内容（排除标题行）
+      let content = titleMatch 
+        ? section.substring(titleMatch[0].length).trim() 
+        : section.trim();
+      
+      // 特殊处理表格内容，保持其格式
+      content = content.replace(/\|-{2,}\|/g, '|---|'); // 格式化表格分隔行
       
       return {
         title: title || `差异类别 ${index + 1}`,
         content
       };
     });
+  };
+
+  // 提取并增强处理表格内容的函数
+  const processTableContent = (content: string) => {
+    if (content.includes('|')) {
+      return (
+        <div className="overflow-x-auto">
+          <div className="whitespace-pre-wrap text-sm" dangerouslySetInnerHTML={{ __html: content }} />
+        </div>
+      );
+    }
+    
+    return (
+      <div className="whitespace-pre-wrap text-sm">
+        {content.split('\n').map((line, i) => (
+          <React.Fragment key={i}>
+            {line}
+            <br />
+          </React.Fragment>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -221,7 +270,7 @@ const CompareDocuments = () => {
           <Card className="mt-6">
             <CardHeader>
               <CardTitle>已选择文档</CardTitle>
-              <CardDescription>选择两个文档并点击比较，分析它们的差异</CardDescription>
+              <CardDescription>选择两个文档并点击比较，详细分析它们的差异</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col md:flex-row gap-4">
@@ -264,12 +313,12 @@ const CompareDocuments = () => {
                   {isComparing ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      比对中...
+                      详细比对中...
                     </>
                   ) : (
                     <>
                       <FileDiff className="h-4 w-4" />
-                      比较文档
+                      详细比对文档
                     </>
                   )}
                 </Button>
@@ -285,7 +334,7 @@ const CompareDocuments = () => {
                 <div>
                   <CardTitle className="flex items-center gap-2">
                     <FileDiff className="h-5 w-5" />
-                    文档比对结果
+                    文档详细比对结果
                   </CardTitle>
                   <CardDescription>
                     AI分析的文档差异详情
@@ -316,7 +365,7 @@ const CompareDocuments = () => {
                 
                 <div className="prose max-w-none">
                   {comparisonView === 'raw' ? (
-                    <div className="whitespace-pre-wrap text-sm">
+                    <div className="whitespace-pre-wrap text-sm overflow-x-auto">
                       {comparisonResult.split('\n').map((line, i) => (
                         <React.Fragment key={i}>
                           {line}
@@ -325,22 +374,23 @@ const CompareDocuments = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="space-y-6">
+                    <div className="space-y-4">
                       {formatComparison(comparisonResult).map((section, index) => (
-                        <div key={index} className="border rounded-lg p-4 bg-muted/5">
-                          <h3 className="text-md font-semibold border-b pb-2 mb-3 flex items-center gap-2">
-                            <FileSearch className="h-4 w-4" />
-                            {section.title}
-                          </h3>
-                          <div className="whitespace-pre-wrap text-sm">
-                            {section.content.split('\n').map((line, i) => (
-                              <React.Fragment key={i}>
-                                {line}
-                                <br />
-                              </React.Fragment>
-                            ))}
-                          </div>
-                        </div>
+                        <Collapsible key={index} className="border rounded-lg overflow-hidden">
+                          <CollapsibleTrigger className="flex items-center justify-between w-full p-4 bg-muted/10 hover:bg-muted/20 transition-colors">
+                            <h3 className="text-lg font-semibold flex items-center gap-2 text-left">
+                              <FileSearch className="h-5 w-5" />
+                              {section.title}
+                            </h3>
+                            <div className="flex items-center">
+                              <ChevronDown className="h-5 w-5 collapsible-closed" />
+                              <ChevronUp className="h-5 w-5 collapsible-open" />
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="p-4 border-t">
+                            {processTableContent(section.content)}
+                          </CollapsibleContent>
+                        </Collapsible>
                       ))}
                     </div>
                   )}

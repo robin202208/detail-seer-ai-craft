@@ -15,8 +15,8 @@ export const useFileProcessing = () => {
 
     try {
       toast({
-        title: "Processing started",
-        description: `Analyzing ${files.length} file(s) with AI...`,
+        title: "开始处理",
+        description: `正在使用AI分析 ${files.length} 个文件...`,
       });
 
       const filePromises = files.map(file => processFileWithAI(file));
@@ -25,15 +25,15 @@ export const useFileProcessing = () => {
       setResults(processedResults);
       
       toast({
-        title: "Analysis complete",
-        description: `Successfully analyzed ${files.length} file(s)`,
+        title: "分析完成",
+        description: `成功分析了 ${files.length} 个文件`,
         variant: "default",
       });
     } catch (error) {
-      console.error('Error processing files:', error);
+      console.error('处理文件出错:', error);
       toast({
-        title: "Error processing files",
-        description: "There was an error analyzing your files. Please try again.",
+        title: "处理文件出错",
+        description: "分析文件时发生错误，请重试。",
         variant: "destructive",
       });
     } finally {
