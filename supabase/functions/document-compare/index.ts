@@ -12,80 +12,84 @@ const ALIBABA_CLOUD_API_ENDPOINT = "https://dashscope.aliyuncs.com/api/v1/servic
 // 最大允许的输入长度，根据模型限制设置为30000（略小于实际限制30720以留出安全余量）
 const MAX_MODEL_INPUT_LENGTH = 30000;
 
-// 提取文档的摘要信息
+// 提取文档的摘要信息，增强差异检测能力的智能摘要
 function extractDocumentSummary(text: string, maxLength: number): string {
   if (text.length <= maxLength) return text;
   
-  // 提取文档的开头、中间和结尾部分
-  const headSize = Math.floor(maxLength * 0.4);  // 40%用于开头
-  const tailSize = Math.floor(maxLength * 0.3);  // 30%用于结尾
-  const midSize = maxLength - headSize - tailSize; // 剩余30%用于中间部分
+  // 更智能的文档摘要提取策略，确保捕捉关键内容
+  // 开头占30%，结尾占20%，剩余的50%分布在文档中间，以5段为单位提取
+  const headSize = Math.floor(maxLength * 0.3);
+  const tailSize = Math.floor(maxLength * 0.2);
+  const midTotalSize = maxLength - headSize - tailSize;
   
+  // 从文档中间部分均匀提取5个片段
+  const docMiddle = text.substring(headSize, text.length - tailSize);
+  const middleSegmentLength = Math.floor(midTotalSize / 5);
+  const middleSegments: string[] = [];
+  
+  // 计算中间部分的分段点
+  for (let i = 0; i < 5; i++) {
+    const segmentStart = Math.floor(docMiddle.length * i / 5);
+    const segmentText = docMiddle.substring(segmentStart, segmentStart + middleSegmentLength);
+    middleSegments.push(segmentText);
+  }
+  
+  // 组合最终文档摘要
   const head = text.substring(0, headSize);
-  const middle = text.substring(Math.floor(text.length/2) - midSize/2, Math.floor(text.length/2) + midSize/2);
   const tail = text.substring(text.length - tailSize);
   
-  return `${head}\n\n[...文档中间部分已省略...]\n\n${middle}\n\n[...文档中间部分已省略...]\n\n${tail}`;
+  return `${head}\n\n${middleSegments.join("\n\n[...文档间隔...]\n\n")}\n\n${tail}`;
+}
+
+// 优化后的比对提示词，专注于捕捉细微差异
+function getDetailedComparisonPrompt(docA: string, docB: string): string {
+  return `作为一位专注于文档细节比对的AI专家，你需要对以下两份文档进行极其精确、系统和详尽的比对分析，特别关注最细微的差异。请用中文回答，并按以下结构输出：
+
+## 1. 【细微差异摘要】
+- 相似度评分(0-100%)
+- 文档差异程度（极小/小/中/大/极大）
+- 关注点：请特别关注字词、标点、格式等微小但重要的差异
+
+## 2. 【逐字逐句差异对比】
+按照文档结构顺序，标注每一处不同，包括：
+- 标点符号差异
+- 单个字词替换
+- 词语顺序调整
+- 增删内容（无论多小）
+- 数字、日期、金额等关键信息变化
+
+## 3. 【表格式精确对比】
+请创建一个三列表格，包含：
+| 位置 | 文档A内容 | 文档B内容 |
+并列出所有差异。位置应尽可能精确（第几段第几句或其他明确位置标识）。
+
+## 4. 【关键差异高亮】
+标记对文档含义或法律效力有潜在影响的差异，特别是：
+- 数值变化
+- 权责条款修改
+- 时间/日期变更
+- 定义或术语的微调
+
+## 5. 【细节总结】
+- 总结所有发现的差异数量
+- 评估这些差异对整体文档含义的潜在影响
+- 指出最重要的3-5处细微差异
+
+请务必逐字逐句进行比对，即使是最微小的差异（如一个空格、一个标点）也必须指出。如果文档长度接近，请尝试进行完整比对；如果文档内容过长，请确保覆盖文档的各个部分，并在无法完全比对时明确说明。
+
+文档A:
+${docA}
+
+文档B:
+${docB}`;
 }
 
 // 智能比对函数：根据文档大小动态调整比对策略
 async function compareDocuments(docA: string, docB: string): Promise<string> {
-  console.log("开始智能文档比对");
+  console.log("开始智能文档细微差异比对");
 
-  // 计算提示词和两个文档的综合长度
-  const promptTemplate = `作为一位精通文档比对的专家，请对以下两份文档进行极其精确、系统和详尽的比对分析，不要遗漏任何细节。请用中文回答，并按以下结构输出：
-
-## 1. 【总体对比摘要】
-- 相似度评分(0-100%)
-- 文档A与B的主要区别概述
-- 整体变化趋势和关键差异点
-
-## 2. 【内容差异】
-### 2.1 文档A独有内容
-- 详细列出所有文档A独有的章节、段落、句子
-- 每处独有内容标明在原文中的位置和重要性
-
-### 2.2 文档B独有内容
-- 详细列出所有文档B独有的章节、段落、句子
-- 每处独有内容标明在原文中的位置和重要性
-
-### 2.3 共有内容的差异
-- 相同段落中的文字修改（词语替换、增减、调整）
-- 句式结构变化
-- 表达方式变化
-
-## 3. 【格式与结构差异】
-- 段落划分差异
-- 标题与小标题差异
-- 缩进、换行、空格差异
-- 列表、表格结构差异
-
-## 4. 【语言表达差异】
-- 措辞与用语差别
-- 语气与语调变化
-- 专业术语使用差异
-- 表达清晰度与准确性差异
-
-## 5. 【关键信息差异】
-- 数字与日期变化
-- 人名、地名、机构名变化
-- 联系方式、网址等信息变化
-- 其他重要实体信息变化
-
-## 6. 【文档质量对比】
-- 哪份文档格式更规范
-- 哪份文档内容更完整
-- 哪份文档表达更专业/清晰
-
-## 7. 【详细对比表】
-请提供一个详细的对比表，列出所有重要差异点，包括在文档中的位置、原文内容和修改内容。
-
-请务必做到全面细致，不遗漏任何可能的差异，即使是细微的标点符号或格式变化。对于每一类差异，请提供具体示例并引用原文。
-
-文档A:
-`;
-
-  const estimatedPromptLength = promptTemplate.length + 300; // 300留给额外参数和格式
+  // 提示词估计长度和安全余量
+  const estimatedPromptLength = 1500; // 基础提示词长度估计
   const maxDocLength = Math.floor((MAX_MODEL_INPUT_LENGTH - estimatedPromptLength) / 2);
 
   console.log(`估计提示词长度: ${estimatedPromptLength}, 每个文档最大允许长度: ${maxDocLength}`);
@@ -98,7 +102,7 @@ async function compareDocuments(docA: string, docB: string): Promise<string> {
   console.log(`处理后文档A长度: ${processedDocA.length}, 处理后文档B长度: ${processedDocB.length}`);
 
   // 构建完整提示词
-  const fullPrompt = `${promptTemplate}${processedDocA}\n\n文档B:\n${processedDocB}`;
+  const fullPrompt = getDetailedComparisonPrompt(processedDocA, processedDocB);
   
   if (fullPrompt.length > MAX_MODEL_INPUT_LENGTH) {
     console.warn(`警告: 即使经过处理，提示词总长度${fullPrompt.length}仍超过模型限制${MAX_MODEL_INPUT_LENGTH}`);
@@ -109,7 +113,7 @@ async function compareDocuments(docA: string, docB: string): Promise<string> {
     const furtherReducedDocA = extractDocumentSummary(processedDocA, processedDocA.length - reductionPerDoc);
     const furtherReducedDocB = extractDocumentSummary(processedDocB, processedDocB.length - reductionPerDoc);
     
-    const finalPrompt = `${promptTemplate}${furtherReducedDocA}\n\n文档B:\n${furtherReducedDocB}`;
+    const finalPrompt = getDetailedComparisonPrompt(furtherReducedDocA, furtherReducedDocB);
     console.log(`紧急调整后的提示词长度: ${finalPrompt.length}`);
     
     return await callAiModel(finalPrompt);
@@ -135,8 +139,8 @@ async function callAiModel(prompt: string): Promise<string> {
           prompt: prompt
         },
         parameters: {
-          temperature: 0.1,
-          top_p: 0.85,
+          temperature: 0.05,  // 降低温度以提高精确性
+          top_p: 0.95,        // 提高top_p以增加准确性
           result_format: "message",
           max_tokens: 8000,
         }
@@ -177,7 +181,7 @@ async function callAiModel(prompt: string): Promise<string> {
       throw new Error("无法从API响应中提取比对结果，请检查API响应格式");
     }
 
-    console.log("AI模型调用成功，已获取比对结果");
+    console.log("AI模型调用成功，已获取细微差异比对结果");
     return outputText;
   } catch (error) {
     console.error("AI模型调用出错:", error);
@@ -192,7 +196,7 @@ serve(async (req) => {
   }
 
   try {
-    console.log("接收到文档比对请求");
+    console.log("接收到文档细微差异比对请求");
     const { documentA, documentB } = await req.json()
 
     if (!documentA || !documentB) {
@@ -214,7 +218,7 @@ serve(async (req) => {
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       )
     } catch (error) {
-      console.error("文档比对处理错误:", error);
+      console.error("文档细微差异比对处理错误:", error);
       
       // 返回更具可读性的错误信息
       const errorMessage = error instanceof Error ? error.message : "处理文档时出现技术问题";
