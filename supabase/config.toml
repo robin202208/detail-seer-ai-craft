@@ -1,1 +1,5 @@
+
 project_id = "ppdbecmhgibrvhzctmwr"
+
+[functions.document-compare]
+verify_jwt = true

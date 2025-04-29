@@ -9,6 +9,7 @@ export interface FileProcessingResult {
     content: string;
   }[];
   summary?: string;
+  content?: string; // Added for document comparison
 }
 
 export const getFileExtension = (fileName: string): string => {
@@ -38,6 +39,27 @@ export const getFileTypeIcon = (fileType: string): string => {
   return 'file';
 };
 
+// Function to extract text content from a file
+export const extractTextFromFile = async (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        resolve(e.target.result as string);
+      } else {
+        reject(new Error('Failed to read file content'));
+      }
+    };
+    
+    reader.onerror = () => {
+      reject(new Error('Error reading file'));
+    };
+    
+    reader.readAsText(file);
+  });
+};
+
 // Mock function to simulate AI processing of files
 // In a real implementation, this would connect to an AI service
 export const processFileWithAI = async (file: File): Promise<FileProcessingResult> => {
@@ -45,6 +67,15 @@ export const processFileWithAI = async (file: File): Promise<FileProcessingResul
   await new Promise(resolve => setTimeout(resolve, 2000));
   
   const fileType = file.type || `file/${getFileExtension(file.name)}`;
+  let content = '';
+  
+  try {
+    // Try to extract text content
+    content = await extractTextFromFile(file);
+  } catch (error) {
+    console.error('Error extracting text:', error);
+    content = 'Content extraction not available for this file type';
+  }
   
   // Mock results based on file type
   let details = [];
@@ -74,11 +105,11 @@ export const processFileWithAI = async (file: File): Promise<FileProcessingResul
     details = [
       { category: 'Content Type', content: 'Text Document' },
       { category: 'Language', content: 'Simplified Chinese (主要) with some English terms' },
-      { category: 'Character Count', content: '~1,200 characters' },
+      { category: 'Character Count', content: `~${content.length} characters` },
       { category: 'Sections Detected', content: 'Header, Main Content, Footer' },
       { category: 'Key Entities', content: 'Names, Dates, Organization References' },
     ];
-    summary = 'This appears to be a text document written primarily in Simplified Chinese with some English technical terms. It contains approximately 1,200 characters divided into structured sections.';
+    summary = 'This appears to be a text document written primarily in Simplified Chinese with some English technical terms. It contains structured sections with various entities like names, dates, and organizational references.';
   }
   
   return {
@@ -87,6 +118,7 @@ export const processFileWithAI = async (file: File): Promise<FileProcessingResul
     fileSize: formatFileSize(file.size),
     contentType: fileType,
     details,
-    summary
+    summary,
+    content: content.substring(0, 5000) // Limit content length for large files
   };
 };
