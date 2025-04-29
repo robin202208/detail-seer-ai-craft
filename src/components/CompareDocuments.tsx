@@ -6,6 +6,8 @@ import DocumentUploader from './document-comparison/DocumentUploader';
 import DocumentList from './document-comparison/DocumentList';
 import SelectedDocuments from './document-comparison/SelectedDocuments';
 import ComparisonResult from './document-comparison/ComparisonResult';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, Info } from 'lucide-react';
 
 interface ComparisonResult {
   comparison: string;
@@ -67,8 +69,8 @@ const CompareDocuments = () => {
       const contentB = fileContents[selectedFiles.fileB.name];
 
       toast({
-        title: "开始详细比对",
-        description: "正在深入分析文档差异，这可能需要一些时间...",
+        title: "开始细微差异比对",
+        description: "正在深入分析文档细节，特别是数字、批号等关键差异...",
       });
 
       const { data, error } = await supabase.functions.invoke<ComparisonResult>('document-compare', {
@@ -90,7 +92,7 @@ const CompareDocuments = () => {
       
       toast({
         title: "比对完成",
-        description: "文档差异详细分析已完成"
+        description: "文档细微差异分析已完成，重点标注了数字和标识符的差异"
       });
     } catch (error) {
       console.error('文档比对错误:', error);
@@ -151,6 +153,16 @@ const CompareDocuments = () => {
   return (
     <div className="w-full space-y-6">
       <div className="flex flex-col gap-4">
+        {!comparisonResult && !comparisonError && (
+          <Alert variant="default" className="bg-blue-50 border-blue-200">
+            <Info className="h-4 w-4 text-blue-500" />
+            <AlertDescription className="text-blue-700">
+              我们的文档比对引擎专门设计用于识别细微差异，如批号、代码、数值等关键信息的变化。
+              上传两个文档后，系统将高亮显示这些关键差异。
+            </AlertDescription>
+          </Alert>
+        )}
+      
         <DocumentUploader onFileUpload={handleFileUpload} />
         
         <DocumentList 
