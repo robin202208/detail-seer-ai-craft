@@ -150,13 +150,35 @@ async function callAiModel(prompt: string): Promise<string> {
       throw new Error(`API调用失败: ${result.message || result.error || "未知错误"}`);
     }
 
-    if (!result.output?.text) {
-      console.error("API响应结构异常:", JSON.stringify(result));
-      throw new Error("API响应格式异常，未找到输出文本");
+    console.log("API原始响应:", JSON.stringify(result).substring(0, 500) + "...");
+
+    // 增强版结果解析，适应多种可能的返回格式
+    let outputText = "";
+    
+    // 尝试从不同可能的路径获取输出文本
+    if (result.output?.text) {
+      outputText = result.output.text;
+    } else if (result.output?.choices && result.output.choices.length > 0) {
+      if (result.output.choices[0].message?.content) {
+        outputText = result.output.choices[0].message.content;
+      } else if (result.output.choices[0].text) {
+        outputText = result.output.choices[0].text;
+      }
+    } else if (result.choices && result.choices.length > 0) {
+      if (result.choices[0].message?.content) {
+        outputText = result.choices[0].message.content;
+      } else if (result.choices[0].text) {
+        outputText = result.choices[0].text;
+      }
+    }
+    
+    if (!outputText) {
+      console.error("无法从API响应中提取文本:", JSON.stringify(result).substring(0, 500) + "...");
+      throw new Error("无法从API响应中提取比对结果，请检查API响应格式");
     }
 
     console.log("AI模型调用成功，已获取比对结果");
-    return result.output.text;
+    return outputText;
   } catch (error) {
     console.error("AI模型调用出错:", error);
     throw error;
@@ -189,14 +211,20 @@ serve(async (req) => {
       
       return new Response(
         JSON.stringify({ comparison: comparisonResult }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
       )
     } catch (error) {
       console.error("文档比对处理错误:", error);
+      
+      // 返回更具可读性的错误信息
+      const errorMessage = error instanceof Error ? error.message : "处理文档时出现技术问题";
+      const userFriendlyError = "文档比对失败。" + 
+        (errorMessage.includes("API") ? "AI服务暂时不可用，请稍后再试。" : "请尝试上传较小的文档或不同格式的文件。");
+      
       return new Response(
         JSON.stringify({ 
-          error: "文档比对处理失败", 
-          details: error.message || "处理文档时出现技术问题" 
+          error: userFriendlyError, 
+          details: errorMessage
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
       )

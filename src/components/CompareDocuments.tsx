@@ -17,6 +17,7 @@ const CompareDocuments = () => {
   const [fileContents, setFileContents] = useState<{[key: string]: string}>({});
   const [isComparing, setIsComparing] = useState(false);
   const [comparisonResult, setComparisonResult] = useState<string | null>(null);
+  const [comparisonError, setComparisonError] = useState<string | null>(null);
 
   const handleFileUpload = (files: File[]) => {
     setUploadedFiles(prev => [...prev, ...files]);
@@ -41,6 +42,10 @@ const CompareDocuments = () => {
       ...prev,
       [`file${slot}`]: file
     }));
+    
+    // 清除之前的比对结果和错误
+    setComparisonResult(null);
+    setComparisonError(null);
   };
 
   const compareDocuments = async () => {
@@ -55,6 +60,7 @@ const CompareDocuments = () => {
 
     setIsComparing(true);
     setComparisonResult(null);
+    setComparisonError(null);
 
     try {
       const contentA = fileContents[selectedFiles.fileA.name];
@@ -72,9 +78,15 @@ const CompareDocuments = () => {
         }
       });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        throw new Error(error.message);
+      }
       
-      setComparisonResult(data?.comparison || '未能获取比较结果');
+      if (!data?.comparison) {
+        throw new Error("无法获取比较结果");
+      }
+      
+      setComparisonResult(data.comparison);
       
       toast({
         title: "比对完成",
@@ -82,9 +94,24 @@ const CompareDocuments = () => {
       });
     } catch (error) {
       console.error('文档比对错误:', error);
+      
+      // 提供更友好的错误信息
+      let errorMessage = "比对文档时出错";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // 检查特定的错误情况
+        if (errorMessage.includes("2xx")) {
+          errorMessage = "与AI服务连接失败。请尝试减少文档大小或稍后再试。";
+        } else if (errorMessage.includes("格式")) {
+          errorMessage = "处理文档时出错。请确保文档格式正确且内容可读。";
+        }
+      }
+      
+      setComparisonError(errorMessage);
+      
       toast({
         title: "比对失败",
-        description: error instanceof Error ? error.message : "比较文档时出错",
+        description: errorMessage,
         variant: "destructive"
       });
     } finally {
@@ -94,6 +121,8 @@ const CompareDocuments = () => {
 
   const clearSelectedFiles = () => {
     setSelectedFiles({});
+    setComparisonResult(null);
+    setComparisonError(null);
   };
 
   const removeFile = (fileToRemove: File) => {
@@ -105,6 +134,10 @@ const CompareDocuments = () => {
         fileA: prev.fileA === fileToRemove ? undefined : prev.fileA,
         fileB: prev.fileB === fileToRemove ? undefined : prev.fileB
       }));
+      
+      // 清除比对结果和错误
+      setComparisonResult(null);
+      setComparisonError(null);
     }
     
     // Remove file contents
@@ -136,6 +169,7 @@ const CompareDocuments = () => {
         
         <ComparisonResult 
           comparisonResult={comparisonResult}
+          errorMessage={comparisonError}
           selectedFiles={selectedFiles}
         />
       </div>

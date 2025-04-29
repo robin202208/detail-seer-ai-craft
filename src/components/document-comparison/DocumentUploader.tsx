@@ -64,15 +64,16 @@ const DocumentUploader = ({ onFileUpload }: DocumentUploaderProps) => {
 
   // 验证文件
   const validateFiles = (files: File[]): File[] => {
+    // 降低单个文件大小限制，避免超出模型处理能力
     const allowedTypes = ['.pdf', '.txt', '.doc', '.docx'];
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 5 * 1024 * 1024; // 5MB (降低限制)
     
     const validFiles = files.filter(file => {
       // 检查文件大小
       if (file.size > maxSize) {
         toast({
           title: "文件过大",
-          description: `${file.name} 超出大小限制(10MB)，已跳过`,
+          description: `${file.name} 超出大小限制(5MB)，已跳过。较大的文件可能导致比对失败。`,
           variant: "destructive"
         });
         return false;
@@ -123,7 +124,7 @@ const DocumentUploader = ({ onFileUpload }: DocumentUploaderProps) => {
           选择多个文档上传 (.pdf, .txt, .doc, .docx) 或拖放文件到此区域
         </p>
         <div className="text-xs text-muted-foreground mt-2 text-center">
-          文件大小限制: 10MB/文件
+          文件大小限制: 5MB/文件（较大的文件可能导致比对失败）
         </div>
       </label>
     </div>
