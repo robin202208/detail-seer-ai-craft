@@ -1,6 +1,5 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,6 +25,8 @@ serve(async (req) => {
       )
     }
 
+    console.log("Comparing documents with Alibaba Cloud AI")
+    
     // Call Alibaba Cloud AI API for document comparison
     const response = await fetch(ALIBABA_CLOUD_API_ENDPOINT, {
       method: 'POST',
@@ -53,6 +54,7 @@ ${documentB}`,
     })
 
     const result = await response.json()
+    console.log("Received comparison result from AI API")
 
     return new Response(
       JSON.stringify({
