@@ -1,13 +1,14 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, FileDiff, FileText } from 'lucide-react';
+import { Loader2, FileDiff, FileText, FileSearch } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { toast } from '@/components/ui/use-toast';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface ComparisonResult {
   comparison: string;
@@ -19,6 +20,7 @@ const CompareDocuments = () => {
   const [fileContents, setFileContents] = useState<{[key: string]: string}>({});
   const [isComparing, setIsComparing] = useState(false);
   const [comparisonResult, setComparisonResult] = useState<string | null>(null);
+  const [comparisonView, setComparisonView] = useState<'formatted' | 'raw'>('formatted');
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -40,8 +42,8 @@ const CompareDocuments = () => {
       });
 
       toast({
-        title: "Files uploaded",
-        description: `Successfully added ${newFiles.length} file(s)`,
+        title: "文件已上传",
+        description: `成功添加 ${newFiles.length} 个文件`,
       });
     }
   };
@@ -56,8 +58,8 @@ const CompareDocuments = () => {
   const compareDocuments = async () => {
     if (!selectedFiles.fileA || !selectedFiles.fileB) {
       toast({
-        title: "Selection needed",
-        description: "Please select two documents to compare",
+        title: "需要选择文件",
+        description: "请选择两个文档进行比较",
         variant: "destructive"
       });
       return;
@@ -70,6 +72,11 @@ const CompareDocuments = () => {
       const contentA = fileContents[selectedFiles.fileA.name];
       const contentB = fileContents[selectedFiles.fileB.name];
 
+      toast({
+        title: "开始比对",
+        description: "正在分析文档差异，这可能需要一点时间...",
+      });
+
       const { data, error } = await supabase.functions.invoke<ComparisonResult>('document-compare', {
         body: {
           documentA: contentA,
@@ -79,17 +86,17 @@ const CompareDocuments = () => {
 
       if (error) throw new Error(error.message);
       
-      setComparisonResult(data?.comparison || 'No comparison result available');
+      setComparisonResult(data?.comparison || '未能获取比较结果');
       
       toast({
-        title: "Comparison complete",
-        description: "Documents have been compared successfully"
+        title: "比对完成",
+        description: "文档差异分析已完成"
       });
     } catch (error) {
       console.error('Error comparing documents:', error);
       toast({
-        title: "Comparison failed",
-        description: error instanceof Error ? error.message : "An error occurred while comparing documents",
+        title: "比对失败",
+        description: error instanceof Error ? error.message : "比较文档时出错",
         variant: "destructive"
       });
     } finally {
@@ -120,6 +127,24 @@ const CompareDocuments = () => {
     });
   };
 
+  // Format comparison result for better readability
+  const formatComparison = (text: string) => {
+    if (!text) return [];
+    
+    // Convert the text into sections based on numbered points
+    const sections = text.split(/^\d+\.\s/m).filter(Boolean);
+    
+    return sections.map((section, index) => {
+      const title = section.split('\n')[0].trim();
+      const content = section.split('\n').slice(1).join('\n').trim();
+      
+      return {
+        title: title || `差异类别 ${index + 1}`,
+        content
+      };
+    });
+  };
+
   return (
     <div className="w-full space-y-6">
       <div className="flex flex-col gap-4">
@@ -141,16 +166,16 @@ const CompareDocuments = () => {
             <div className="h-12 w-12 rounded-full bg-detailseer/10 flex items-center justify-center mb-4">
               <FileText className="h-6 w-6 text-detailseer" />
             </div>
-            <h3 className="text-lg font-medium mb-2">Upload documents for comparison</h3>
+            <h3 className="text-lg font-medium mb-2">上传文档进行比较</h3>
             <p className="text-sm text-muted-foreground mb-4 text-center">
-              Select multiple documents to upload (.pdf, .txt, .doc, .docx)
+              选择多个文档上传 (.pdf, .txt, .doc, .docx)
             </p>
           </label>
         </div>
 
         {uploadedFiles.length > 0 && (
           <div className="mt-6">
-            <h3 className="text-lg font-medium mb-3">Uploaded Documents ({uploadedFiles.length})</h3>
+            <h3 className="text-lg font-medium mb-3">已上传文档 ({uploadedFiles.length})</h3>
             <div className="space-y-2">
               {uploadedFiles.map((file, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-muted/20 rounded-md">
@@ -168,7 +193,7 @@ const CompareDocuments = () => {
                       className={cn(selectedFiles.fileA === file && "bg-blue-100 border-blue-300")}
                       onClick={() => selectFileForComparison(file, 'A')}
                     >
-                      Document A
+                      文档 A
                     </Button>
                     <Button 
                       variant="outline" 
@@ -176,14 +201,14 @@ const CompareDocuments = () => {
                       className={cn(selectedFiles.fileB === file && "bg-blue-100 border-blue-300")}
                       onClick={() => selectFileForComparison(file, 'B')}
                     >
-                      Document B
+                      文档 B
                     </Button>
                     <Button 
                       variant="ghost" 
                       size="sm"
                       onClick={() => removeFile(file)}
                     >
-                      Remove
+                      移除
                     </Button>
                   </div>
                 </div>
@@ -195,13 +220,13 @@ const CompareDocuments = () => {
         {(selectedFiles.fileA || selectedFiles.fileB) && (
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>Selected Documents for Comparison</CardTitle>
-              <CardDescription>Select two documents and click compare to analyze their differences</CardDescription>
+              <CardTitle>已选择文档</CardTitle>
+              <CardDescription>选择两个文档并点击比较，分析它们的差异</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col md:flex-row gap-4">
                 <div className="flex-1 p-4 bg-muted/20 rounded-md">
-                  <h4 className="text-sm font-medium mb-2">Document A</h4>
+                  <h4 className="text-sm font-medium mb-2">文档 A</h4>
                   {selectedFiles.fileA ? (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -210,12 +235,12 @@ const CompareDocuments = () => {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No document selected</p>
+                    <p className="text-sm text-muted-foreground">未选择文档</p>
                   )}
                 </div>
                 
                 <div className="flex-1 p-4 bg-muted/20 rounded-md">
-                  <h4 className="text-sm font-medium mb-2">Document B</h4>
+                  <h4 className="text-sm font-medium mb-2">文档 B</h4>
                   {selectedFiles.fileB ? (
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -224,13 +249,13 @@ const CompareDocuments = () => {
                       </div>
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground">No document selected</p>
+                    <p className="text-sm text-muted-foreground">未选择文档</p>
                   )}
                 </div>
               </div>
               
               <div className="flex justify-end gap-4 mt-4">
-                <Button variant="outline" onClick={clearSelectedFiles}>Clear Selection</Button>
+                <Button variant="outline" onClick={clearSelectedFiles}>清除选择</Button>
                 <Button 
                   onClick={compareDocuments}
                   disabled={!selectedFiles.fileA || !selectedFiles.fileB || isComparing}
@@ -239,12 +264,12 @@ const CompareDocuments = () => {
                   {isComparing ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      Comparing...
+                      比对中...
                     </>
                   ) : (
                     <>
                       <FileDiff className="h-4 w-4" />
-                      Compare Documents
+                      比较文档
                     </>
                   )}
                 </Button>
@@ -256,36 +281,69 @@ const CompareDocuments = () => {
         {comparisonResult && (
           <Card className="mt-6 animate-fade-in">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileDiff className="h-5 w-5" />
-                Document Comparison Results
-              </CardTitle>
-              <CardDescription>
-                AI-powered analysis of differences between selected documents
-              </CardDescription>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileDiff className="h-5 w-5" />
+                    文档比对结果
+                  </CardTitle>
+                  <CardDescription>
+                    AI分析的文档差异详情
+                  </CardDescription>
+                </div>
+                <div>
+                  <Tabs value={comparisonView} onValueChange={(v) => setComparisonView(v as 'formatted' | 'raw')} className="w-[200px]">
+                    <TabsList>
+                      <TabsTrigger value="formatted">结构化视图</TabsTrigger>
+                      <TabsTrigger value="raw">原始文本</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-2 mb-4">
                   <Badge variant="outline" className="bg-detailseer/10 text-detailseer-dark border-0">
-                    Document A: {selectedFiles.fileA?.name}
+                    文档 A: {selectedFiles.fileA?.name}
                   </Badge>
                   <Badge variant="outline" className="bg-detailseer/10 text-detailseer-dark border-0">
-                    Document B: {selectedFiles.fileB?.name}
+                    文档 B: {selectedFiles.fileB?.name}
                   </Badge>
                 </div>
                 
                 <Separator className="my-4" />
                 
                 <div className="prose max-w-none">
-                  <div className="whitespace-pre-wrap text-sm">
-                    {comparisonResult.split('\n').map((line, i) => (
-                      <React.Fragment key={i}>
-                        {line}
-                        <br />
-                      </React.Fragment>
-                    ))}
-                  </div>
+                  {comparisonView === 'raw' ? (
+                    <div className="whitespace-pre-wrap text-sm">
+                      {comparisonResult.split('\n').map((line, i) => (
+                        <React.Fragment key={i}>
+                          {line}
+                          <br />
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {formatComparison(comparisonResult).map((section, index) => (
+                        <div key={index} className="border rounded-lg p-4 bg-muted/5">
+                          <h3 className="text-md font-semibold border-b pb-2 mb-3 flex items-center gap-2">
+                            <FileSearch className="h-4 w-4" />
+                            {section.title}
+                          </h3>
+                          <div className="whitespace-pre-wrap text-sm">
+                            {section.content.split('\n').map((line, i) => (
+                              <React.Fragment key={i}>
+                                {line}
+                                <br />
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>

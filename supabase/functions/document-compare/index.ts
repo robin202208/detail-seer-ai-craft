@@ -25,9 +25,9 @@ serve(async (req) => {
       )
     }
 
-    console.log("Comparing documents with Alibaba Cloud AI")
+    console.log("Starting detailed document comparison with Alibaba Cloud AI")
     
-    // Call Alibaba Cloud AI API for document comparison
+    // Call Alibaba Cloud AI API for document comparison with improved prompt
     const response = await fetch(ALIBABA_CLOUD_API_ENDPOINT, {
       method: 'POST',
       headers: {
@@ -37,28 +37,47 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "qwen-plus", // Using Qwen-Plus model for detailed text analysis
         input: {
-          prompt: `Please compare the following two documents and identify the detailed differences between them. Analyze structure, key points, factual information, style, and language usage. Format the response as a structured comparison with categories of differences.
+          prompt: `请详细分析以下两个文档之间的所有差异，包括：
+1. 内容差异：哪些内容在A文档中有而B文档中没有，反之亦然
+2. 文本修改：哪些内容被修改了，具体修改了什么
+3. 格式和结构差异：段落、章节、标题的组织方式有何不同
+4. 语言表达差异：用词、语气、语调的变化
+5. 关键信息差异：关键数据、日期、名称、引用等的差异
+6. 整体内容对比：两份文档的主要差异点总结
+
+将分析结果按上述类别分段呈现，使用表格或清晰的格式标记差异。
           
-Document A:
+文档A:
 ${documentA}
 
-Document B:
+文档B:
 ${documentB}`,
         },
         parameters: {
-          temperature: 0.2,
-          top_p: 0.8,
+          temperature: 0.1,
+          top_p: 0.85,
           result_format: "message",
         }
       })
     })
 
     const result = await response.json()
-    console.log("Received comparison result from AI API")
+    console.log("Received detailed comparison analysis from AI API")
+
+    if (!result.output?.text) {
+      console.error("API response error:", JSON.stringify(result))
+      return new Response(
+        JSON.stringify({ 
+          error: "Failed to get comparison result", 
+          details: result.message || "No output received from AI API" 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      )
+    }
 
     return new Response(
       JSON.stringify({
-        comparison: result.output?.text || "No comparison result available"
+        comparison: result.output.text
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
