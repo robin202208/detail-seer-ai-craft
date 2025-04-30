@@ -1,4 +1,4 @@
- Detail-Seer-AI-Craft
+ Detail-Seer-AI
 
 欢迎来到 **Detail-Seer-AI-Craft** 项目！
 
